@@ -1,0 +1,135 @@
+-- =============================================================================
+-- SQL Schema for: Federal University Oye-Ekiti (FUOYE)
+-- Department: Electrical and Electronics Engineering (EEE)
+-- Database: MySQL
+--
+-- This script creates a relational database to manage student records,
+-- course information, faculty, and enrollments.
+-- =============================================================================
+
+-- Create the database if it doesn't already exist
+CREATE DATABASE IF NOT EXISTS fuoye_eee_db
+CHARACTER SET utf8mb4
+COLLATE utf8mb4_unicode_ci;
+
+-- Switch to the newly created database
+USE fuoye_eee_db;
+
+-- -----------------------------------------------------
+-- Table 1: Students
+-- Stores core information for each student.
+-- This is the central entity.
+-- -----------------------------------------------------
+CREATE TABLE IF NOT EXISTS Students (
+    StudentID VARCHAR(15) PRIMARY KEY, -- Matriculation Number, e.g., 'EEE/2021/001'
+    FirstName VARCHAR(100) NOT NULL,
+    LastName VARCHAR(100) NOT NULL,
+    MiddleName VARCHAR(100),
+    Email VARCHAR(100) NOT NULL UNIQUE, -- Official university email
+    Phone VARCHAR(20) UNIQUE,
+    Gender ENUM('Male', 'Female', 'Other') NOT NULL,
+    DateOfBirth DATE NOT NULL,
+    AdmissionYear YEAR(5) NOT NULL,
+    StudentStatus ENUM('Active', 'Graduated', 'Withdrawn', 'Suspended') NOT NULL DEFAULT 'Active'
+) ENGINE=InnoDB;
+
+-- -----------------------------------------------------
+-- Table 2: StudentDetails
+-- Stores supplementary student information.
+-- This has a One-to-One relationship with the Students table.
+-- -----------------------------------------------------
+CREATE TABLE IF NOT EXISTS StudentDetails (
+    StudentID VARCHAR(15) PRIMARY KEY, -- This is both PK and FK
+    HomeAddress TEXT,
+    NextOfKin_Name VARCHAR(200) NOT NULL,
+    NextOfKin_Phone VARCHAR(20) NOT NULL,
+    
+    -- Define the One-to-One relationship
+    CONSTRAINT fk_studentdetails_student
+        FOREIGN KEY (StudentID)
+        REFERENCES Students(StudentID)
+        ON DELETE CASCADE -- If a student is deleted, their details are also removed.
+) ENGINE=InnoDB;
+
+-- -----------------------------------------------------
+-- Table 3: Lecturers
+-- Stores information about the academic staff in the department.
+-- -----------------------------------------------------
+CREATE TABLE IF NOT EXISTS Lecturers (
+    LecturerID VARCHAR(15) PRIMARY KEY, -- Staff ID, e.g., 'FUOYE/EEE/010'
+    Title ENUM('Prof.', 'Dr.', 'Engr.', 'Mr.', 'Mrs.', 'Ms.') NOT NULL,
+    FirstName VARCHAR(100) NOT NULL,
+    LastName VARCHAR(100) NOT NULL,
+    Email VARCHAR(100) NOT NULL UNIQUE, -- Official staff email
+    Phone VARCHAR(20) UNIQUE,
+    Office VARCHAR(50) -- e.g., 'Room 20, EEE Complex'
+) ENGINE=InnoDB;
+
+-- -----------------------------------------------------
+-- Table 4: Courses
+-- This is the department's course catalog.
+-- -----------------------------------------------------
+CREATE TABLE IF NOT EXISTS Courses (
+    CourseCode VARCHAR(10) PRIMARY KEY, -- e.g., 'EEE501'
+    CourseTitle VARCHAR(255) NOT NULL,
+    Credits INT NOT NULL, -- Or "Units"
+    Level INT NOT NULL, -- 100, 200, 300, 400, 500
+    Semester ENUM('Harmattan', 'Rain') NOT NULL -- Using Nigerian university semester names
+) ENGINE=InnoDB;
+
+-- -----------------------------------------------------
+-- Table 5: CourseOfferings
+-- Describes a specific instance of a course being taught.
+-- Connects Courses and Lecturers (One-to-Many relationships).
+-- -----------------------------------------------------
+CREATE TABLE IF NOT EXISTS CourseOfferings (
+    OfferingID INT AUTO_INCREMENT PRIMARY KEY,
+    CourseCode VARCHAR(10) NOT NULL,
+    LecturerID VARCHAR(15) NOT NULL,
+    Session VARCHAR(9) NOT NULL, -- e.g., '2024/2025'
+    Semester ENUM('Harmattan', 'Rain') NOT NULL,
+    
+    -- A course should only be offered once per session/semester
+    CONSTRAINT uq_offering UNIQUE(CourseCode, Session, Semester),
+    
+    -- Define the One-to-Many relationships
+    CONSTRAINT fk_offering_course
+        FOREIGN KEY (CourseCode)
+        REFERENCES Courses(CourseCode)
+        ON DELETE RESTRICT, -- Don't delete a course if it has offerings
+        
+    CONSTRAINT fk_offering_lecturer
+        FOREIGN KEY (LecturerID)
+        REFERENCES Lecturers(LecturerID)
+        ON DELETE SET NULL -- If lecturer leaves, set to NULL (may need manual reassignment)
+) ENGINE=InnoDB;
+
+-- -----------------------------------------------------
+-- Table 6: Enrollments
+-- This is the Many-to-Many junction table.
+-- It connects Students to CourseOfferings and stores the grade.
+-- -----------------------------------------------------
+CREATE TABLE IF NOT EXISTS Enrollments (
+    EnrollmentID INT AUTO_INCREMENT PRIMARY KEY,
+    StudentID VARCHAR(15) NOT NULL,
+    OfferingID INT NOT NULL,
+    
+    -- Storing both raw scores and the final grade is good practice
+    TestScore DECIMAL(4, 1),   -- Continuous Assessment (e.g., up to 40.0)
+    ExamScore DECIMAL(4, 1),   -- Final Exam (e.g., up to 60.0)
+    FinalGrade ENUM('A', 'B', 'C', 'D', 'E', 'F', 'I', 'W') DEFAULT NULL, -- I=Incomplete, W=Withdrew
+    
+    -- A student can only be enrolled in one specific offering ONCE.
+    CONSTRAINT uq_student_offering UNIQUE(StudentID, OfferingID),
+    
+    -- Define the Many-to-Many relationships
+    CONSTRAINT fk_enrollment_student
+        FOREIGN KEY (StudentID)
+        REFERENCES Students(StudentID)
+        ON DELETE CASCADE, -- If student is removed, their enrollments are too.
+        
+    CONSTRAINT fk_enrollment_offering
+        FOREIGN KEY (OfferingID)
+        REFERENCES CourseOfferings(OfferingID)
+        ON DELETE CASCADE -- If an offering is cancelled/deleted, remove enrollments.
+) ENGINE=InnoDB;
