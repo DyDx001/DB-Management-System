@@ -48,4 +48,4 @@ All while maintaining integrity, consistency, and transparency.
 1. Launch your MySQL server.  
 2. Execute the SQL setup file:
    ```bash
-   mysql -u root -p < fuoye_eee_database.sql
+   mysql -u root -p < fuoye_eee_db.sql
